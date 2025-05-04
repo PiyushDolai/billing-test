@@ -3,23 +3,120 @@
 <head>
     <title>Billing Reports</title>
     <style>
-        table {
-            width: 80%;
-            border-collapse: collapse;
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
             margin-bottom: 20px;
+        }
+        .filter-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .filter-section label {
+            display: inline-block;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .filter-section input[type="date"], .filter-section button {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .filter-section button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        .filter-section button:hover {
+            background-color: #0056b3;
+        }
+        .error-message {
+            color: red;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
         }
         th {
             background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination a, .pagination span {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            margin: 0 5px;
+            text-decoration: none;
+            color: #333;
+            border-radius: 4px;
+        }
+        .pagination a:hover {
+            background-color: #f0f0f0;
+        }
+        .pagination .current {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
     <h1>Billing Reports</h1>
+
+    <div class="filter-section">
+        <form th:action="@{/reports}" method="get">
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate" name="startDate" th:value="${startDate}">
+            <label for="endDate">End Date:</label>
+            <input type="date" id="endDate" name="endDate" th:value="${endDate}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <button type="submit">Filter</button>
+            <button type="button" onclick="window.location.href='/reports'">Clear Filter</button>
+        </form>
+        <p th:if="${errorMessage}" class="error-message" th:text="${errorMessage}"></p>
+    </div>
 
     <table th:if="${not #lists.isEmpty(billings)}">
         <thead>
@@ -37,8 +134,10 @@
                 <td th:text="${#numbers.formatDecimal(billing.totalAmount, 1, 2)}"></td>
                 <td>
                     <ul>
-                        <li th:each="item : ${billing.billingItems}"
-                            th:text="${item.productName} + ' (' + ${item.quantity} + ' x ₹' + ${#numbers.formatDecimal(item.price, 1, 2)} + ') = ₹' + ${#numbers.formatDecimal(item.itemTotal, 1, 2)}">
+                        <li th:each="item : ${billing.billingItems}">
+                            <span th:text="${item.productName}"></span>
+                            (<span th:text="${item.quantity}"></span> x ₹<span th:text="${#numbers.formatDecimal(item.price, 1, 2)}"></span>)
+                            = ₹<span th:text="${#numbers.formatDecimal(item.itemTotal, 1, 2)}"></span>
                         </li>
                     </ul>
                 </td>
@@ -47,6 +146,19 @@
     </table>
     <p th:unless="${not #lists.isEmpty(billings)}">No billing records found.</p>
 
-    <a href="/billing">Go back to Billing</a>
+    <div th:if="${totalPages > 1}" class="pagination">
+        <a th:if="${currentPage > 0}" th:href="@{/reports(page=${currentPage - 1}, size=${pageSize}, startDate=${startDate}, endDate=${endDate})}">&laquo; Previous</a>
+        <span th:unless="${currentPage > 0}">&laquo; Previous</span>
+
+        <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
+            <a th:if="${i != currentPage}" th:href="@{/reports(page=${i}, size=${pageSize}, startDate=${startDate}, endDate=${endDate})}" th:text="${i + 1}"></a>
+            <span th:if="${i == currentPage}" class="current" th:text="${i + 1}"></span>
+        </th:block>
+
+        <a th:if="${currentPage < totalPages - 1}" th:href="@{/reports(page=${currentPage + 1}, size=${pageSize}, startDate=${startDate}, endDate=${endDate})}">Next &raquo;</a>
+        <span th:unless="${currentPage < totalPages - 1}">Next &raquo;</span>
+    </div>
+
+    <a href="/billing" class="back-link">Go back to Billing</a>
 </body>
 </html>

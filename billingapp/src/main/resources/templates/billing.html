@@ -3,35 +3,137 @@
 <head>
     <title>Billing Page</title>
     <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #barcode-input-area {
+            margin-bottom: 20px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        input[type="text"]#barcode, input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
         table {
-            width: 80%;
+            width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
         }
         th {
             background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
         }
         #total-amount {
-            font-size: 1.2em;
+            font-size: 1.4em;
             font-weight: bold;
             text-align: right;
+            padding: 15px;
+            background-color: #eee;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        #complete-billing-btn {
+            background-color: #5cb85c;
+            color: white;
+        }
+        #complete-billing-btn:hover {
+            background-color: #4cae4c;
+        }
+        .remove-btn {
+            background-color: #d9534f;
+            color: white;
+        }
+        .remove-btn:hover {
+            background-color: #c9302c;
+        }
+        #billing-completed-message {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+            border-radius: 4px;
+            display: none;
+        }
+        #billing-completed-message a {
+            color: #286090;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        #billing-completed-message button {
+            background-color: #f0ad4e;
+            color: white;
+            margin-left: 10px;
+        }
+        #billing-completed-message button:hover {
+            background-color: #eea236;
+        }
+        #feedback-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+		.error-input {
+            border-color: red;
+        }
+        .validation-error {
+            color: red;
+            margin-top: 5px;
+            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
     <h1>Billing</h1>
 
-    <div>
+    <div id="barcode-input-area">
         <label for="barcode">Scan Barcode:</label>
         <input type="text" id="barcode" autofocus>
+		<div id="barcode-validation-error" class="validation-error" style="display: none;"></div>
     </div>
 
-    <br>
+    <div id="feedback-message"></div>
 
     <table>
         <thead>
@@ -47,70 +149,130 @@
             </tbody>
     </table>
 
-	<div id="total-amount">
+    <div id="total-amount">
         Total: ₹ <span id="total-value">0.00</span>
     </div>
 
     <button id="complete-billing-btn">Complete Billing</button>
 
-    <div id="billing-completed-message" style="display: none; margin-top: 20px; color: green;">
+    <div id="billing-completed-message">
         Billing completed successfully! <a href="/reports">View Report</a>
-        <button id="new-billing-btn" style="margin-left: 10px;">Start New Billing</button>
+        <button id="new-billing-btn">Start New Billing</button>
     </div>
 
     <script th:inline="javascript">
         const barcodeInput = document.getElementById('barcode');
+		const barcodeValidationError = document.getElementById('barcode-validation-error');
         const billingItemsTable = document.getElementById('billing-items');
         const totalValueSpan = document.getElementById('total-value');
-        let cartItems = []; // Array to hold the items in the cart
+        const completeBillingButton = document.getElementById('complete-billing-btn');
+        const billingCompletedMessage = document.getElementById('billing-completed-message');
+        const newBillingButton = document.getElementById('new-billing-btn');
+        const feedbackMessageDiv = document.getElementById('feedback-message');
+		const MIN_BARCODE_LENGTH = 5; // Example minimum length
+        let cartItems = [];
+		let barcodeTimeout;
+		const DEBOUNCE_DELAY = 300; // milliseconds
+		
+		barcodeInput.addEventListener('input', function() {
+		    clearTimeout(barcodeTimeout);
+		    barcodeInput.classList.remove('error-input');
+		    barcodeValidationError.style.display = 'none';
+
+		    const barcode = barcodeInput.value.trim();
+		    if (barcode) {
+		        barcodeTimeout = setTimeout(() => {
+		            if (barcode.length >= MIN_BARCODE_LENGTH /* && pattern check if needed */) {
+		                fetchProductDetails(barcode);
+		            } else if (barcode.length > 0) {
+		                barcodeInput.classList.add('error-input');
+		                barcodeValidationError.textContent = `Barcode must be at least ${MIN_BARCODE_LENGTH} characters long.`;
+		                barcodeValidationError.style.display = 'block';
+		            }
+		        }, DEBOUNCE_DELAY);
+		    }
+		});
 
         barcodeInput.addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
+				clearTimeout(barcodeTimeout); // If Enter is pressed, trigger immediately
                 const barcode = barcodeInput.value.trim();
                 if (barcode) {
-                    fetchProductDetails(barcode);
-                    barcodeInput.value = ''; // Clear the input after scanning
+					if (barcode.length < MIN_BARCODE_LENGTH) {
+	                    barcodeInput.classList.add('error-input');
+	                    barcodeValidationError.textContent = `Barcode must be at least ${MIN_BARCODE_LENGTH} characters long.`;
+	                    barcodeValidationError.style.display = 'block';
+	                } else {
+	                    barcodeInput.classList.remove('error-input');
+	                    barcodeValidationError.style.display = 'none';
+	                    fetchProductDetails(barcode);
+	                    barcodeInput.value = '';
+	                }
+                } else {
+                    barcodeInput.classList.add('error-input');
+                    barcodeValidationError.textContent = 'Please enter a barcode.';
+                    barcodeValidationError.style.display = 'block';
                 }
+            } else {
+                barcodeInput.classList.remove('error-input');
+                barcodeValidationError.style.display = 'none';
             }
         });
 
+        function showFeedbackMessage(message, type) {
+            feedbackMessageDiv.textContent = message;
+            feedbackMessageDiv.className = type;
+            feedbackMessageDiv.style.display = 'block';
+            setTimeout(() => {
+                feedbackMessageDiv.style.display = 'none';
+            }, 3000); // Hide after 3 seconds
+        }
+
         function fetchProductDetails(barcode) {
-            fetch(`/api/products/${barcode}`) // Your Spring Boot endpoint
+            fetch(`/api/products/${barcode}`)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        if (response.status === 404) {
+                            showFeedbackMessage('Product not found!', 'error');
+                        } else {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return null; // Prevent further processing
                     }
                     return response.json();
                 })
                 .then(product => {
-                    addProductToCart(product);
-                    updateBillingTable();
-                    updateTotalAmount();
+                    if (product) {
+                        addProductToCart(product);
+                        updateBillingTable();
+                        updateTotalAmount();
+                        showFeedbackMessage(`${product.name} added to cart.`, 'success');
+                    }
                 })
                 .catch(error => {
                     console.error('Error fetching product details:', error);
-                    alert('Error fetching product details. Please try again.');
+                    showFeedbackMessage('Error fetching product details. Please try again.', 'error');
                 });
         }
 
-		function addProductToCart(product) {
-		    const existingItemIndex = cartItems.findIndex(item => item.id === product.id);
-		    if (existingItemIndex > -1) {
-		        cartItems[existingItemIndex].quantity++;
-		        cartItems[existingItemIndex].total = cartItems[existingItemIndex].quantity * product.price; // Keep total for frontend display
-		    } else {
-		        cartItems.push({
-		            id: product.id,
-		            name: product.name,
-		            price: product.price,
-		            quantity: 1,
-		            total: product.price // Keep total for frontend display
-		        });
-		    }
-		}
+        function addProductToCart(product) {
+            const existingItemIndex = cartItems.findIndex(item => item.id === product.id);
+            if (existingItemIndex > -1) {
+                cartItems[existingItemIndex].quantity++;
+                cartItems[existingItemIndex].total = cartItems[existingItemIndex].quantity * product.price;
+            } else {
+                cartItems.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    quantity: 1,
+                    total: product.price
+                });
+            }
+        }
 
         function updateBillingTable() {
-            billingItemsTable.innerHTML = ''; // Clear the table
+            billingItemsTable.innerHTML = '';
 
             cartItems.forEach((item, index) => {
                 const row = billingItemsTable.insertRow();
@@ -137,6 +299,7 @@
                 const actionCell = row.insertCell();
                 const removeButton = document.createElement('button');
                 removeButton.textContent = 'Remove';
+                removeButton.className = 'remove-btn';
                 removeButton.addEventListener('click', () => removeItem(index));
                 actionCell.appendChild(removeButton);
             });
@@ -161,16 +324,8 @@
             const total = cartItems.reduce((sum, item) => sum + item.total, 0);
             totalValueSpan.textContent = total.toFixed(2);
         }
-		
-		const completeBillingButton = document.getElementById('complete-billing-btn');
-        const billingCompletedMessage = document.getElementById('billing-completed-message');
-        const newBillingButton = document.getElementById('new-billing-btn');
 
-        completeBillingButton.addEventListener('click', completeBilling);
-        newBillingButton.addEventListener('click', startNewBilling);
-				
-		function completeBilling() {
-			debugger;
+        function completeBilling() {
             if (cartItems.length > 0) {
                 fetch('/api/billing/complete', {
                     method: 'POST',
@@ -179,39 +334,38 @@
                     },
                     body: JSON.stringify(cartItems)
                 })
-				.then(response => {
-		            if (!response.ok) {
-		                throw new Error(`HTTP error! status: ${response.status}`);
-		            }
-		            return response.json(); // Now this will be the billing ID (or your success message)
-		        })
-		        .then(billingId => { // Rename 'billingDetails' to 'billingId' for clarity
-		            console.log('Billing completed with ID:', billingId);
-		            cartItems = []; // Clear the cart
-		            updateBillingTable();
-		            updateTotalAmount();
-		            billingCompletedMessage.style.display = 'block';
-		            completeBillingButton.style.display = 'none'; // Hide the complete button
-		        })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(billingId => {
+                    console.log('Billing completed with ID:', billingId);
+                    cartItems = [];
+                    updateBillingTable();
+                    updateTotalAmount();
+                    billingCompletedMessage.style.display = 'block';
+                    completeBillingButton.style.display = 'none';
+                })
                 .catch(error => {
                     console.error('Error completing billing:', error);
-                    alert('Error completing billing. Please try again.');
+                    showFeedbackMessage('Error completing billing. Please try again.', 'error');
                 });
             } else {
-                alert('Your cart is empty. Please add items before completing billing.');
+                showFeedbackMessage('Your cart is empty. Please add items.', 'error');
             }
         }
 
         function startNewBilling() {
             billingCompletedMessage.style.display = 'none';
-            completeBillingButton.style.display = 'block'; // Show the complete button again
+            completeBillingButton.style.display = 'block';
             barcodeInput.focus();
         }
-		
-		// Automatically focus on the barcode input when the page loads
-		window.onload = function() {
-		    barcodeInput.focus();
-		};
+
+        window.onload = function() {
+            barcodeInput.focus();
+        };
     </script>
 </body>
 </html>
