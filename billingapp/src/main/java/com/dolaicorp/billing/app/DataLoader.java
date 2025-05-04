@@ -20,9 +20,9 @@ public class DataLoader implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         List<Product> products = List.of(
-                new Product("Laptop", "1234567890", 1200.00),
-                new Product("Mouse", "0987654321", 25.00),
-                new Product("Keyboard", "1122334455", 75.00)
+                new Product("Coca-Cola", "8901764012303", 50.00),
+                new Product("FeviKwik", "8901860010005", 5.00),
+                new Product("Nivea Soft", "42241782", 55.00)
         );
         productRepository.saveAll(products);
     }

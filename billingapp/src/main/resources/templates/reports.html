@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Billing Reports</title>
+    <style>
+        table {
+            width: 80%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Billing Reports</h1>
+
+    <table th:if="${not #lists.isEmpty(billings)}">
+        <thead>
+            <tr>
+                <th>Billing ID</th>
+                <th>Billing Date</th>
+                <th>Total Amount</th>
+                <th>Items</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="billing : ${billings}">
+                <td th:text="${billing.id}"></td>
+                <td th:text="${#temporals.format(billing.billingDate, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                <td th:text="${#numbers.formatDecimal(billing.totalAmount, 1, 2)}"></td>
+                <td>
+                    <ul>
+                        <li th:each="item : ${billing.billingItems}"
+                            th:text="${item.productName} + ' (' + ${item.quantity} + ' x ₹' + ${#numbers.formatDecimal(item.price, 1, 2)} + ') = ₹' + ${#numbers.formatDecimal(item.itemTotal, 1, 2)}">
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <p th:unless="${not #lists.isEmpty(billings)}">No billing records found.</p>
+
+    <a href="/billing">Go back to Billing</a>
+</body>
+</html>

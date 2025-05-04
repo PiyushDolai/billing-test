@@ -47,8 +47,15 @@
             </tbody>
     </table>
 
-    <div id="total-amount">
+	<div id="total-amount">
         Total: ₹ <span id="total-value">0.00</span>
+    </div>
+
+    <button id="complete-billing-btn">Complete Billing</button>
+
+    <div id="billing-completed-message" style="display: none; margin-top: 20px; color: green;">
+        Billing completed successfully! <a href="/reports">View Report</a>
+        <button id="new-billing-btn" style="margin-left: 10px;">Start New Billing</button>
     </div>
 
     <script th:inline="javascript">
@@ -86,21 +93,21 @@
                 });
         }
 
-        function addProductToCart(product) {
-            const existingItemIndex = cartItems.findIndex(item => item.id === product.id);
-            if (existingItemIndex > -1) {
-                cartItems[existingItemIndex].quantity++;
-                cartItems[existingItemIndex].total = cartItems[existingItemIndex].quantity * product.price;
-            } else {
-                cartItems.push({
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    quantity: 1,
-                    total: product.price
-                });
-            }
-        }
+		function addProductToCart(product) {
+		    const existingItemIndex = cartItems.findIndex(item => item.id === product.id);
+		    if (existingItemIndex > -1) {
+		        cartItems[existingItemIndex].quantity++;
+		        cartItems[existingItemIndex].total = cartItems[existingItemIndex].quantity * product.price; // Keep total for frontend display
+		    } else {
+		        cartItems.push({
+		            id: product.id,
+		            name: product.name,
+		            price: product.price,
+		            quantity: 1,
+		            total: product.price // Keep total for frontend display
+		        });
+		    }
+		}
 
         function updateBillingTable() {
             billingItemsTable.innerHTML = ''; // Clear the table
@@ -154,11 +161,57 @@
             const total = cartItems.reduce((sum, item) => sum + item.total, 0);
             totalValueSpan.textContent = total.toFixed(2);
         }
+		
+		const completeBillingButton = document.getElementById('complete-billing-btn');
+        const billingCompletedMessage = document.getElementById('billing-completed-message');
+        const newBillingButton = document.getElementById('new-billing-btn');
 
-        // Automatically focus on the barcode input when the page loads
-        window.onload = function() {
+        completeBillingButton.addEventListener('click', completeBilling);
+        newBillingButton.addEventListener('click', startNewBilling);
+				
+		function completeBilling() {
+			debugger;
+            if (cartItems.length > 0) {
+                fetch('/api/billing/complete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(cartItems)
+                })
+				.then(response => {
+		            if (!response.ok) {
+		                throw new Error(`HTTP error! status: ${response.status}`);
+		            }
+		            return response.json(); // Now this will be the billing ID (or your success message)
+		        })
+		        .then(billingId => { // Rename 'billingDetails' to 'billingId' for clarity
+		            console.log('Billing completed with ID:', billingId);
+		            cartItems = []; // Clear the cart
+		            updateBillingTable();
+		            updateTotalAmount();
+		            billingCompletedMessage.style.display = 'block';
+		            completeBillingButton.style.display = 'none'; // Hide the complete button
+		        })
+                .catch(error => {
+                    console.error('Error completing billing:', error);
+                    alert('Error completing billing. Please try again.');
+                });
+            } else {
+                alert('Your cart is empty. Please add items before completing billing.');
+            }
+        }
+
+        function startNewBilling() {
+            billingCompletedMessage.style.display = 'none';
+            completeBillingButton.style.display = 'block'; // Show the complete button again
             barcodeInput.focus();
-        };
+        }
+		
+		// Automatically focus on the barcode input when the page loads
+		window.onload = function() {
+		    barcodeInput.focus();
+		};
     </script>
 </body>
 </html>
